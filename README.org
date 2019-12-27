@@ -1,0 +1,127 @@
+#+TITLE: Sonic The Hedgehog in Common Lisp
+#+AUTHOR: Lucas Vieira
+#+EMAIL:  lucasvieira@protonmail.com
+
+* What is this?
+
+This is  a clone of  Sonic The  Hedgehog's Sega Genesis  engine, which
+aims to replicate the physics of the mascot's classic games as much as
+possible.
+
+* Disclaimer
+
+I do not  own Sonic The Hedgehog  or any of the  related characters on
+the franchise.  Copyright infringiment is  not intended, as this  is a
+project for  study purposes  only. Assets used for this study project
+shall not land on any commercial  product whatsoever. As for the code,
+it is original work, based on  the data available from careful reverse
+engineering  of Sonic  games, available  across the  internet in  many
+documents.
+
+* Why Common Lisp?
+
+There are two reasons for that. First of all, Common Lisp is generally
+an  underrated language,  for those  who never  tasted its  power. So,
+after  thinkering with  it  for a  few months,  I  decided to  develop
+something that would make me sweat my shirt a little more.
+
+Which leads to the second reason. Lisp in game development is not news
+for me. For the past few  years, I've been developing generic C++ game
+engines and trying to emulate Sonic engine on them has been a personal
+goal, which  I've always set as  one of my proof-of-concepts  for this
+kind of  project: if  it can  run such a  complex platformer,  then it
+works.  The second  version of  one of  my engines  also included  the
+ability to  run Scheme as  scripting language; however, the  effort of
+embedding such a  language in a C++ program seemed  always so big, and
+while  it  did not  perform  well  due  to design  and  implementation
+choices,  there was  just  so  much friction  in  just enabling  those
+scripts so they can work with in-game objects.
+
+Hence enters  Common Lisp. While  not a minimal language  like Scheme,
+Common Lisp is  just as mature and has so  many powerful tools, either
+on  the   language  or   external,  which  fed   my  needs   for  game
+development. So,  if we add  these tools, take a  good implementation,
+and then  take a mature engine  which Lisp hackers use  for developing
+their own games (yes, Lisp game  development is a thing), we get stuff
+like this project.
+
+I am  definitely biased on those  terms but, if you  came here looking
+for game development stuff, I tell  you right now: why not take Common
+Lisp for a spin?
+
+* Frequently Questioned Answers
+
+** Why didn't you use /<insert some other Lisp dialect here>/?
+
+Because I  feel comfortable developing  such a project in  Common Lisp
+nowadays. The tools  are surprisingly stable and  very flexible. Plus,
+running the game while developing it,  with no extra work for that, is
+very cool.
+
+** Why don't you try /<insert some frakework here>/?
+
+No.
+
+** Why don't you just use /<insert pseudo-Lisp here>/? All the cool kids are us--
+
+No.
+
+** Why don't you just use JavaScript or something web-based
+
+Because web-based  games are everywhere  nowadays, and I wanted  to do
+something different.  If you want web  stuff, check out my  profile on
+Itch. There might be interesting little web games there.
+
+* Execution
+
+As per  =trivial-gamekit='s requirements, in  order to run  the project,
+you will need:
+
+- A x86_64 operational system (Windows, Linux, OSX);
+- OpenGL 3.3+ support;
+- A x86_64 Lisp implementation (specifically SBCL or CCL);
+- Quicklisp.
+
+Check out Quicklisp information [[https://www.quicklisp.org/beta/][here]].
+
+Check out =trivial-gamekit= and =cl-bodge= information [[https://borodust.org/projects/trivial-gamekit/][here]].
+
+** Running the game
+
+Start  by cloning  this  repository  on your  =quicklisp/local-projects=
+directory,  or  create  a  symlink   to  the  cloned  folder  on  your
+=quicklisp/local-projects= directory.
+
+One could also use Roswell to  run this project, tough Roswell support
+is largely untested right now, though it is planned in the future.
+
+Finally, load the system and start the engine:
+
+#+begin_src lisp :eval no
+(ql:quickload :sonic-lisp)
+(sonic-lisp:start)
+#+end_src
+
+Anytime you want to quit, either close the window or type the
+following in the REPL:
+
+#+begin_src lisp :eval no
+(sonic-lisp:stop)
+#+end_src
+
+* Documentation
+
+The entire project is being developed as a /literate program/, therefore
+most of it will eventually be documented as such. Comments are kept to
+a minimum and  most of the explanation will be  carried in prose form,
+exported to PDF and/or HTML.
+
+You   can   view   the   actual   /literate   program/   on   the   file
+[[file:sonic-lisp.org]].
+
+* License
+
+This project is distributed under the MIT License, except for eventual
+copyrighted   assets    (Sonic's   sprites,   some    sound   effects,
+etc). Specifically  for the code (and  for the code only!),  check the
+[[./LICENSE][LICENSE]] file for details.

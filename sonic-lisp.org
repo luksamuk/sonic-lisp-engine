@@ -1,0 +1,1167 @@
+#+TITLE: Sonic The Hedgehog Engine
+#+AUTHOR: Lucas S. Vieira
+#+PROPERTY: header-args:lisp
+#+STARTUP:  content
+
+* System
+:PROPERTIES:
+:header-args:lisp: :tangle sonic-lisp.asd :eval no
+:END:
+
+#+begin_src lisp
+;;;; sonic-lisp.asd
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+#+end_src
+
+#+begin_src lisp
+(asdf:defsystem #:sonic-lisp
+  :description "Description"
+  :author "Lucas S. Vieira <lucasvieira@protonmail.com>"
+  :license "MIT"
+  :version "0.0.1"
+  :serial t
+  :depends-on (#:trivial-gamekit)
+  :components ((:file "package")
+               (:file "globals")
+               (:file "input")
+               (:file "animations")
+               (:file "debugger")
+               (:file "player")
+               (:file "main")))
+#+end_src
+
+** Bundling system
+
+#+begin_src lisp
+(asdf:defsystem #:sonic-lisp/bundle
+  :description "Bundles sonic-lisp into a standalone executable"
+  :author "Lucas S. Vieira <lucasvieira@protonmail.com>"
+  :license "MIT"
+  :version "0.0.1"
+  :serial t
+  :depends-on (#:trivial-gamekit/distribution
+               #:sonic-lisp)
+  :components ((:file "bundle")))
+#+end_src
+
+* Packages
+:PROPERTIES:
+:header-args:lisp: :tangle package.lisp
+:END:
+
+#+begin_src lisp
+;;;; package.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+#+end_src
+
+#+begin_src lisp
+(defpackage #:sonic-lisp
+  (:use #:cl)
+  (:export #:sonic-game
+           #:start
+           #:stop
+           #:reset))
+#+end_src
+
+* Global definitions
+:PROPERTIES:
+:header-args:lisp: :tangle globals.lisp
+:END:
+
+#+begin_src lisp
+;;;; globals.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** Globals
+
+#+begin_src lisp
+(defvar +black+  (gamekit:vec4 0 0 0 1))
+(defvar +black-transp+ (gamekit:vec4 0 0 0 0.5))
+(defvar +white+  (gamekit:vec4 1 1 1 1))
+(defvar +origin+ (gamekit:vec2 0 0))
+(defvar +cornflower-blue+
+  (gamekit:vec4 (/ 100 255)
+                (/ 149 255)
+                (/ 237 255)))
+#+end_src
+
+#+RESULTS:
+: +CORNFLOWER-BLUE+
+
+#+begin_src lisp
+(defvar *dt*   0)
+(defvar *fps* 60)
+(defvar *last-check* (get-internal-real-time))
+#+end_src
+
+#+RESULTS:
+: *LAST-CHECK*
+
+#+begin_src lisp
+(defparameter *basic-rendering-ok* nil)
+(defparameter *game-start* nil)
+#+end_src
+
+#+RESULTS:
+: *GAME-START*
+
+** Game properties
+
+#+begin_src lisp
+(defvar *game-properties*
+  `(:title "Sonic Engine"
+    :window-width  640
+    :window-height 360
+    :background    ,+cornflower-blue+))
+
+(defmacro gameprop (property)
+  `(getf *game-properties* ,property))
+#+end_src
+
+#+RESULTS:
+: GAMEPROP
+
+** Game definition
+
+#+begin_src lisp
+(gamekit:defgame sonic-game
+    () ()
+    (:viewport-title  (gameprop :title))
+    (:viewport-width  (gameprop :window-width))
+    (:viewport-height (gameprop :window-height))
+    (:prepare-resources nil))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT::CONFIGURE-GAME (SONIC-GAME) {10073F8B93}>
+
+** Resource initialization
+
+#+begin_src lisp
+(gamekit:register-resource-package
+ :keyword (merge-pathnames "resources/"
+                           (asdf:system-relative-pathname
+                            :sonic-lisp "")))
+#+end_src
+
+#+RESULTS:
+: #P"/home/alchemist/projects/org/sonic-lisp/resources/"
+
+*** Images
+
+#+begin_src lisp
+(gamekit:define-image :sonic-sprites "sprites/sonic.png")
+#+end_src
+
+#+RESULTS:
+: NIL
+
+*** Level music
+
+#+begin_src lisp
+(gamekit:define-sound :level-music "bgm/level6.ogg")
+#+end_src
+
+#+RESULTS:
+: NIL
+
+*** Sound Effects
+
+#+begin_src lisp
+(gamekit:define-sound :sfx-skidding "sfx/00_skidding.ogg")
+(gamekit:define-sound :sfx-jump     "sfx/02_jump.ogg")
+(gamekit:define-sound :sfx-spindash "sfx/03_spindash.ogg")
+(gamekit:define-sound :sfx-release  "sfx/04_release.ogg")
+#+end_src
+
+#+RESULTS:
+: NIL
+
+*** Fonts
+
+#+begin_src lisp
+(gamekit:define-font :gohufont "fonts/gohufont-uni-11.ttf")
+#+end_src
+
+#+RESULTS:
+: NIL
+
+#+begin_src lisp
+(defparameter *font-gohu-11* nil)
+#+end_src
+
+#+RESULTS:
+: *FONT-GOHU-11*
+
+*** Level background
+
+Still WIP. Placeholders.
+
+#+begin_src lisp
+(gamekit:define-image :bg-layer0 "bg/level6/parallax/layer0.png")
+(gamekit:define-image :bg-layer1 "bg/level6/parallax/layer1.png")
+(gamekit:define-image :bg-layer2 "bg/level6/parallax/layer2.png")
+(gamekit:define-image :bg-layer3 "bg/level6/parallax/layer3.png")
+(gamekit:define-image :bg-layer4 "bg/level6/parallax/layer4.png")
+(gamekit:define-image :bg-layer5 "bg/level6/parallax/layer5.png")
+#+end_src
+
+#+RESULTS:
+: NIL
+
+* Input
+:PROPERTIES:
+:header-args:lisp: :tangle input.lisp
+:END:
+
+#+begin_src lisp
+;;;; input.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** Template for input globals
+
+#+begin_src lisp
+(defvar +input-template+
+  '(:up nil :down nil :left nil :right nil
+    :start nil :select nil
+    :a nil :b nil :x nil :y nil))
+#+end_src
+
+#+RESULTS:
+: +INPUT-TEMPLATE+
+
+** Input globals
+
+#+begin_src lisp
+(defparameter *input-unsync* (copy-list +input-template+))
+(defparameter *input-sync*   (copy-list +input-template+))
+(defparameter *input-old*    (copy-list +input-template+))
+#+end_src
+
+#+RESULTS:
+: *INPUT-OLD*
+
+** Predicates
+
+#+begin_src lisp
+(defun pressing-p (key)
+  (getf *input-sync* key))
+#+end_src
+
+#+RESULTS:
+: PRESSING-P
+
+#+begin_src lisp
+(defun pressed-p (key)
+  (and (getf *input-sync* key)
+       (not (getf *input-old* key))))
+#+end_src
+
+#+RESULTS:
+: PRESSED-P
+
+** Input update
+
+#+begin_src lisp
+(defun update-input ()
+  (setf *input-old*  (copy-list *input-sync*)
+        ,*input-sync* (copy-list *input-unsync*)))
+#+end_src
+
+#+RESULTS:
+: UPDATE-INPUT
+
+** Button bindings
+
+#+begin_src lisp
+(defmacro make-button-bindings (alist)
+  `(progn
+     ,@(loop for (button key) in alist
+          collect `(gamekit:bind-button
+                    ,key :pressed
+                    (lambda ()
+                      (setf (getf *input-unsync* ,button) t)))
+          collect `(gamekit:bind-button
+                    ,key :released
+                    (lambda ()
+                      (setf (getf *input-unsync* ,button) nil))))))
+#+end_src
+
+#+RESULTS:
+: MAKE-BUTTON-BINDINGS
+
+*** Default bindings
+
+#+begin_src lisp
+(defun make-default-bindings ()
+  (make-button-bindings
+   ((:up :up) (:down :down) (:left :left) (:right :right)
+    (:start :enter) (:select :backspace)
+    (:a :s) (:b :d) (:x :a) (:y :w))))
+#+end_src
+
+#+RESULTS:
+: MAKE-DEFAULT-BINDINGS
+
+* Animations
+:PROPERTIES:
+:header-args:lisp: :tangle animations.lisp
+:END:
+
+#+begin_src lisp
+;;;; animations.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** Animation properties
+
+#+begin_src lisp
+(defstruct animation-props
+  keyframes
+  (time-per-frame 0.16 :type single-float)
+  (loopback nil))
+#+end_src
+
+#+RESULTS:
+: ANIMATION-PROPS
+
+** Animator
+
+#+begin_src lisp
+(defclass animator ()
+  ((%atlas      :initarg  :atlas
+                :reader   atlas)
+   (%atlas-size :initarg  :atlas-size
+                :reader   atlas-size
+                :initform (gamekit:vec2 360 360))
+   (%fpl        :initarg  :frames-per-line
+                :reader   frames-per-line
+                :initform 6)
+   (%curr-anim  :accessor anim-name
+                :initform nil)
+   (%anim-timer :accessor anim-timer
+                :initform 0)
+   (%frame      :accessor frame
+                :initform 0)
+   (%anims      :initarg :animations
+                :accessor animations
+                :initform nil)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-CLASS SONIC-LISP::ANIMATOR>
+
+#+begin_src lisp
+(defgeneric (setf animation) (animation-name animator))
+(defgeneric register-animation
+    (animator &key name keyframes time-per-frame loopback-index))
+(defgeneric update-animation (animator dt))
+(defgeneric draw-animation (animator position))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-GENERIC-FUNCTION SONIC-LISP::DRAW-ANIMATION (0)>
+
+*** Animation setter
+
+#+begin_src lisp
+(defmethod (setf animation) (animation-name (animator animator))
+  ;; Only set to a registered animation
+  (when (or (eq animation-name :keep)
+            (and (animations animator)
+                 (gethash animation-name (animations animator))))
+    ;; Reset animation data only when not attributing to
+    ;; same animation
+    (unless (or (eql animation-name (anim-name animator))
+                (eq animation-name :keep))
+      (setf (frame animator)      0
+            (anim-timer animator) 0
+            (anim-name animator) animation-name))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD (COMMON-LISP:SETF SONIC-LISP::ANIMATION) (T ANIMATOR) {1006612DD3}>
+
+*** Animation registry
+
+#+begin_src lisp
+(defmethod register-animation ((animator animator)
+                               &key
+                                 name
+                                 keyframes
+                                 (time-per-frame 0.16)
+                                 (loopback-index 0))
+  (let ((keyframes (make-array (length keyframes)
+                               :initial-contents keyframes)))
+    ;; Initialize animations table if not initialized
+    (unless (animations animator)
+      (setf (animations animator) (make-hash-table)))
+    (setf (gethash name (animations animator))
+          (make-animation-props
+           :keyframes keyframes
+           :time-per-frame time-per-frame
+           :loopback loopback-index))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::REGISTER-ANIMATION (ANIMATOR) {1007446763}>
+
+*** Animation updating
+
+#+begin_src lisp
+(defmethod update-animation ((animator animator) dt)
+  (let ((props (gethash (anim-name animator)
+                        (animations animator)))
+        (tpf nil))
+    (when props
+      (incf (anim-timer animator) dt)
+      ;; If we surpassed the frame duration for the
+      ;; animation, calculate the amount of frames
+      ;; to skip and then wrap the timer around.
+      (setf tpf (animation-props-time-per-frame props))
+      (when (>= (anim-timer animator)
+                (animation-props-time-per-frame props))
+        (let ((frames-skipped
+               (floor (/ (anim-timer animator) tpf)))
+              (num-frames
+               (length (animation-props-keyframes props))))
+          ;; Restore timer
+          (setf (anim-timer animator)
+                (rem (anim-timer animator) tpf))
+          ;; Increment current frame
+          (incf (frame animator) frames-skipped)
+          ;; If beyond last frame, wrap around
+          (when (>= (frame animator) num-frames)
+            ;; We need to determine at what frame should we
+            ;; stop; take the loopback frame into account
+            ;; and consider only the [loopback, last-frame]
+            ;; range for another remainder operation.
+            (let* ((loopback-frame
+                      (animation-props-loopback props))
+                   (loopback-range (- num-frames loopback-frame)))
+              (setf (frame animator)
+                    (+ loopback-frame (rem (frame animator)
+                                           loopback-range))))))))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-ANIMATION (ANIMATOR T) {100387F373}>
+
+*** Animation rendering
+
+#+begin_src lisp
+(defmethod draw-animation ((animator animator) (pos gamekit:vec2))
+  (let ((props
+         (gethash (anim-name animator) (animations animator))))
+    (when props
+      ;; Take the index of the frame on the keyfranes, then
+      ;; convert it to a proper X and Y position on the texture
+      ;; atlas
+      (let* ((frame
+              (aref (animation-props-keyframes props)
+                    (frame animator)))
+             (frame-x-index
+              (rem frame (frames-per-line animator)))
+             (frame-y-index
+              (floor (/ frame (frames-per-line animator))))
+             (frame-size
+              (/ (gamekit:x (atlas-size animator))
+                 (frames-per-line animator))))
+        (gamekit:draw-image
+         ;; Position on matrix
+         pos
+         ;; Pass on animation atlas
+         (atlas animator)
+         ;; Position on atlas
+         :origin
+         (gamekit:vec2
+          (* frame-x-index frame-size)
+          (- (- (gamekit:y (atlas-size animator))
+                frame-size)
+             (* frame-y-index frame-size)))
+         ;; Size of frame square
+         :width frame-size
+         :height frame-size)))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::DRAW-ANIMATION (ANIMATOR BODGE-MATH:VEC2) {1002985813}>
+
+* Debugger
+:PROPERTIES:
+:header-args:lisp: :tangle debugger.lisp
+:END:
+
+#+begin_src lisp
+;;;; debugger.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** Drawing text
+
+#+begin_src lisp
+(defmacro debug-text-draw (string position)
+  `(gamekit:draw-text ,string ,position
+                      :fill-color +white+
+                      :font *font-gohu-11*))
+#+end_src
+
+#+RESULTS:
+: DEBUG-TEXT-DRAW
+
+** Rendering a debug panel
+
+#+begin_src lisp
+(defmacro with-debug-panel (&body fields)
+  `(gamekit:with-pushed-canvas ()
+     (gamekit:translate-canvas 10 340)
+     ;; Panel background
+     (gamekit:draw-rect
+      (gamekit:vec2 -10 ,(* -10 (length fields)))
+      (gameprop :window-width)
+      ,(+ (* 10 (length fields)) 20)
+      :fill-paint +black-transp+
+      :stroke-paint +black-transp+)
+     ;; Text fields
+     ,@(let ((curr-y 0))
+         (loop for field in fields
+            collect
+              `(debug-text-draw
+                (format nil ,(first field)
+                        ,@(rest field))
+                (gamekit:vec2 0 ,curr-y))
+            do (decf curr-y 10)))))
+#+end_src
+
+#+RESULTS:
+: WITH-DEBUG-PANEL
+
+* Player
+:PROPERTIES:
+:header-args:lisp: :tangle player.lisp
+:END:
+
+#+begin_src lisp
+;;;; player.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** State values
+
+#+begin_src lisp
+(defparameter *player-general-vals*
+  '((:normal     . (:gravity      0.21875
+                    :accel        0.046875
+                    :air-accel    0.09375
+                    :friction     0.046875
+                    :decel        0.5
+                    :max-x-spd    12.0
+                    :top-x-spd    6.0
+                    :jump-str     6.5
+                    :min-jump     4.0
+                    :air-drag     0.96875
+                    :drag-min-x   0.0125
+                    :drag-min-y   4.0
+                    :slope-factor 0.125
+                    :roll-frict   0.0234375
+                    :roll-decel   0.125
+                    :roll-top-x   16.0
+                    :roll-min-x   1.03125
+                    :unroll-min-x 0.046875))
+    (:super      . ())
+    (:speedshoes . ())))
+#+end_src
+
+#+RESULTS:
+: *PLAYER-GENERAL-VALS*
+
+*** Values for current state
+
+#+begin_src lisp
+(defparameter *cur-state-vals*
+  (rest (assoc :normal *player-general-vals*)))
+#+end_src
+
+#+RESULTS:
+: *CUR-STATE-VALS*
+
+*** Retrieving state values from current state
+
+#+begin_src lisp
+(defmacro get-state-val (key)
+  `(getf *cur-state-vals* ,key))
+#+end_src
+
+#+RESULTS:
+: GET-STATE-VAL
+
+** Player class
+
+#+begin_src lisp
+(defclass player ()
+  ((%anim :initarg  :animator
+          :accessor animator
+          :initform nil)
+   (%pos  :initarg  :position
+          :accessor player-pos
+          :initform (gamekit:vec2 0 0))
+   (%dir  :accessor direction
+          :initform 1)
+   (%gspd :accessor player-gspd
+          :initform 0)
+   (%spd  :initarg  :speed
+          :accessor player-spd
+          :initform (gamekit:vec2 0 0))
+   (%ang  :accessor player-angle
+          :initform 0)
+   (%sta  :accessor state
+          :initform :none)
+   (%grnd :accessor ground
+          :initform t)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-CLASS SONIC-LISP::PLAYER>
+
+#+begin_src lisp
+(defgeneric update-player-anim (player dt))
+(defgeneric update-player-action (player dt))
+(defgeneric update-player-movement (player dt))
+(defgeneric update-player-position (player dt))
+(defgeneric draw-player (player))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-GENERIC-FUNCTION SONIC-LISP::DRAW-PLAYER (0)>
+
+** Player methods
+
+*** Rendering & Animation
+
+#+begin_src lisp
+(defmethod update-player-anim ((player player) dt)
+  (update-animation (animator player) dt)
+  ;; Change animations accordingly
+  (let ((xspd (abs (gamekit:x (player-spd player)))))
+    (setf (animation (animator player))
+          (if (ground player)
+              ;; Case: on ground
+              (case (state player)
+                (:none (cond ((= xspd 0)    :idle)
+                             ((< xspd 5.9)  :walk)
+                             ((< xspd 9.95) :run)
+                             (t :super-run)))
+                (:look-up  :look-up)
+                (:crouch   :crouch)
+                (:skid     :skid)
+                (:spindash :roll) ; wip
+                (:roll     :roll)
+                (otherwise :keep))
+              ;; Case: on air
+              (case (state player)
+                ((:jump :roll) :roll)
+                (otherwise :keep))))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-ANIM (PLAYER T) {10084431F3}>
+
+#+begin_src lisp
+(defmethod draw-player ((player player))
+  (gamekit:with-pushed-canvas ()
+    ;; Position
+    (gamekit:translate-canvas
+     (gamekit:x (player-pos player))
+     (gamekit:y (player-pos player)))
+    (gamekit:with-pushed-canvas ()
+      ;; Direction
+      (gamekit:scale-canvas (direction player) 1)
+      ;; Animation frame
+      (draw-animation (animator player)
+                      ;; Hotspot
+                      (gamekit:vec2 -30 -30)))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::DRAW-PLAYER (PLAYER) {1001B6F663}>
+
+*** Actions
+
+#+TODO: Never compare for xsp = 0! Change that for a predicate stopped-p.
+
+#+begin_src lisp
+(defgeneric update-player-ground-action (player dt))
+(defgeneric update-player-air-action (player dt))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-GENERIC-FUNCTION SONIC-LISP::UPDATE-PLAYER-AIR-ACTION (0)>
+
+#+begin_src lisp
+(defmethod update-player-ground-action ((player player) dt)
+  (let ((xsp (gamekit:x (player-spd player)))
+        (ysp (gamekit:y (player-spd player)))
+        (state (state player)))
+    (declare (ignore ysp))
+    (cond
+      ;; Crouch down, look up
+      ((and (eq state :none)
+            (= xsp 0)
+            (or (pressing-p :down)
+                (pressing-p :up)))
+       (setf (state player)
+             (cond ((pressing-p :down) :crouch)
+                   ((pressing-p :up) :look-up)
+                   (t state))))
+      ;; Reset crouch down/look up
+      ((and (member state '(:crouch :look-up))
+            (not (pressing-p :up))
+            (not (pressing-p :down)))
+       (setf (state player) :none))
+      ;; Jump
+      ((and (not (member state '(:crouch :spindash)))
+            (pressed-p :a))
+       (gamekit:play-sound :sfx-jump)
+       (incf (gamekit:y (player-spd player))
+             (get-state-val :jump-str))
+       (setf (ground player) nil
+             (state player)  :jump))
+      ;; Skidding
+      ((and (eq state :none)
+            (or (and (> xsp (get-state-val :decel))
+                     (pressing-p :left))
+                (and (< xsp (- (get-state-val :decel)))
+                     (pressing-p :right))))
+       (setf (state player) :skid)
+       ;; Sound effect only if at greater speeds
+       (unless (<= (abs xsp) 3.0)
+         (gamekit:play-sound :sfx-skidding)))
+      ;; Skidding cancel when stopped skidding or
+      ;; when changing directions
+      ((and (eq state :skid)
+            (or (and (not (pressing-p :left))
+                     (not (pressing-p :right)))
+                (= xsp 0)))
+       (setf (state player) :none))
+      ;; Spindash
+      ((and (eq state :crouch)
+            (pressed-p :a))
+       (gamekit:play-sound :sfx-spindash)
+       (setf (state player) :spindash))
+      ;; Spindash release
+      ;; TODO: Add revolutions!
+      ((and (eq state :spindash)
+            (not (pressing-p :down)))
+       (gamekit:play-sound :sfx-release)
+       (setf (state player)
+             :roll
+             (gamekit:x (player-spd player))
+             (* 8 (direction player)))) ; wip. Missing rev
+      ;; Uncurl
+      ((and (eq state :roll)
+            (< (abs xsp)
+               (get-state-val :unroll-min-x)))
+       (setf (state player) :none
+             (gamekit:x (player-spd player)) 0)))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-GROUND-ACTION (PLAYER T) {10044BCED3}>
+
+#+begin_src lisp
+(defmethod update-player-air-action ((player player) dt)
+  (let ((xsp (gamekit:x (player-spd player)))
+        (ysp (gamekit:y (player-spd player)))
+        (state (state player)))
+    (declare (ignore xsp))
+    (cond
+      ;; Short jump
+      ((and (eq state :jump)
+            (not (pressing-p :a))
+            (> ysp (get-state-val :min-jump)))
+       (setf (gamekit:y (player-spd player))
+             (get-state-val :min-jump))))))
+#+end_src
+
+
+#+begin_src lisp
+(defmethod update-player-action ((player player) dt)
+  (if (ground player)
+      (update-player-ground-action player dt)
+      (update-player-air-action player dt)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-ACTION (PLAYER T) {100828BDB3}>
+
+*** Movement
+
+#+begin_src lisp
+(defmethod update-player-movement ((player player) dt)
+  (let ((xsp (gamekit:x (player-spd player)))
+        (ysp (gamekit:y (player-spd player)))
+        (groundp (ground player))
+        (state (state player)))
+    ;; Acceleration
+    (unless (member state '(:look-up :crouch :spindash :skid))
+      (when (or (pressing-p :left)
+                (pressing-p :right))
+        (setf (direction player)
+              (if (pressing-p :left) -1 1))
+        (incf (gamekit:x (player-spd player))
+              (* (get-state-val :accel) 90.0 dt
+                 (direction player)))))
+    ;; Deceleration
+    (when (or (and groundp
+                   (not (or (pressing-p :left)
+                            (pressing-p :right))))
+              ;; Also apply when skidding
+              (eq state :skid))
+      ;; Deceleration is stronger for skidding.
+      ;; We also pre-calculate according to the direction
+      ;; we're moving to (may not be the one we're facing)
+      (let* ((decel-factor (if (eq state :skid) 60 10))
+             (decel-val (* (if (> xsp 0) -1 1)
+                           (get-state-val :decel)
+                           decel-factor
+                           dt)))
+        (setf (gamekit:x (player-spd player))
+              ;; Instead of crossing the 0.0 middle mark,
+              ;; perform a full stop
+              (if (<= (abs xsp) (get-state-val :decel))
+                  0.0
+                  (+ xsp decel-val)))))
+    ;; Gravity
+    (unless groundp
+      (setf (gamekit:y (player-spd player))
+            (- ysp (* (get-state-val :gravity)
+                      60
+                      dt))))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-MOVEMENT (PLAYER T) {100229AAD3}>
+
+*** Position
+
+#+TODO: Add support for ground speed
+
+#+begin_src lisp
+(defmethod update-player-position ((player player) dt)
+  (declare (ignore dt))
+  ;; Apply deltas
+  (incf (gamekit:x (player-pos player))
+        (gamekit:x (player-spd player)))
+  (incf (gamekit:y (player-pos player))
+        (gamekit:y (player-spd player))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-POSITION (PLAYER T) {10058BACE3}>
+
+*** General update method
+
+#+begin_src lisp
+(defmethod update-player ((player player) dt)
+  (update-player-anim     player dt)
+  (update-player-action   player dt)
+  (update-player-movement player dt)
+  (update-player-position player dt))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER (PLAYER T) {100757F6B3}>
+
+** Player instantiation
+
+#+begin_src lisp
+(defun create-player (&optional (where (gamekit:vec2 0 0)))
+  (let ((player
+         (make-instance 'player :position where)))
+    ;; Initialize animator and animations for Sonic.
+    ;; Needs changing later.
+    (setf (animator player)
+          (make-instance 'animator :atlas :sonic-sprites))
+    ;; Register default animations
+    (mapcar (lambda (prop)
+              (let ((loopback (or (fourth prop) 0))
+                    (tpf (or (third prop) 0.16)))
+                (register-animation (animator player)
+                                    :name (first prop)
+                                    :keyframes (second prop)
+                                    :time-per-frame tpf
+                                    :loopback-index loopback)))
+            '((:idle    (0 0 0 0 0 0 0 0 0 0 1 2 3 3 4 4) 0.24 12)
+              (:walk    (5 6 7 8 9 10) 0.12)
+              (:run     (11 12 13 14) 0.12)
+              (:roll    (15 16 17 18 19 20 21 22) 0.12)
+              (:skid    (23))
+              (:super-run (24 25 26 27) 0.08)
+              (:push    (28 29 30 31) 0.48)
+              (:crouch  (32))
+              (:look-up (33))
+              (:death   (34))))
+    ;; Set defaults
+    (setf (animation (animator player)) :idle)
+    player))
+#+end_src
+
+#+RESULTS:
+: CREATE-PLAYER
+
+* Main file
+:PROPERTIES:
+:header-args:lisp: :tangle main.lisp
+:END:
+
+#+begin_src lisp
+;;;; main.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** Test variables
+
+#+begin_src lisp
+(defparameter *player*
+  (create-player (gamekit:vec2 100 100)))
+#+end_src
+
+#+RESULTS:
+: *PLAYER*
+
+** Post-initialization
+
+#+begin_src lisp
+(defmethod gamekit:post-initialize ((app sonic-game))
+  ;; Resource acquisition
+  (gamekit:prepare-resources :gohufont) ; first and foremost
+  (gamekit:prepare-resources
+   :sonic-sprites
+   :level-music
+   :sfx-skidding
+   :sfx-jump
+   :sfx-spindash
+   :sfx-release
+   :bg-layer0 :bg-layer1 :bg-layer2
+   :bg-layer3 :bg-layer4 :bg-layer5)
+  (make-default-bindings))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:POST-INITIALIZE (SONIC-GAME) {100255CCE3}>
+
+#+begin_src lisp
+(defmethod gamekit:notice-resources ((app sonic-game) &rest resource-names)
+  (if (member :gohufont resource-names)
+      (progn
+        (setf *basic-rendering-ok* t)
+        (setf *font-gohu-11* (gamekit:make-font :gohufont 11)))
+      (progn
+        (gamekit:play-sound :level-music :looped-p t)
+        (setf *game-start* t))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:NOTICE-RESOURCES (SONIC-GAME) {1003BE8393}>
+
+** Updating
+
+#+begin_src lisp
+(defun update-delta-time ()
+  (let ((current-time (get-internal-real-time)))
+    (setf *dt* (/ (- current-time *last-check*)
+                  internal-time-units-per-second)
+          ,*last-check* current-time
+          ,*fps* (+ (* *fps* 0.99)
+                   (if (= *dt* 0)
+                       0
+                       (* (/ 1 *dt*)
+                          (- 1.0 0.99)))))))
+#+end_src
+
+#+RESULTS:
+: UPDATE-DELTA-TIME
+
+#+begin_src lisp
+(defmethod gamekit:act ((app sonic-game))
+  (when *game-start*
+    (update-delta-time)
+    (update-input)
+    (update-player *player* *dt*)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:ACT (SONIC-GAME) {10034F5743}>
+
+** Rendering
+
+#+begin_src lisp
+(defun draw-debug-panel ()
+  (with-debug-panel
+    ("pos >> (~5$, ~5$)"
+     (gamekit:x (player-pos *player*))
+     (gamekit:y (player-pos *player*)))
+    ("spd >> (~5$, ~5$)"
+     (gamekit:x (player-spd *player*))
+     (gamekit:y (player-spd *player*)))
+    ("fps >> ~5$" *fps*)
+    ("sta >> ~a" (state *player*))
+    ("ani >> ~a" (anim-name (animator *player*)))
+    ("inp >> (~{~a ~})"
+     (loop for (btn sta) on *input-sync*
+        by #'cddr
+        while (keywordp btn)
+        collect (if (not sta)
+                    #\Space
+                    (case btn
+                      (:up     #\↑)
+                      (:down   #\↓)
+                      (:left   #\←)
+                      (:right  #\→)
+                      (:start  #\S)
+                      (:select #\s)
+                      (:a      #\A)
+                      (:b      #\B)
+                      (:x      #\X)
+                      (:y      #\Y)))))))
+#+end_src
+
+#+RESULTS:
+: DRAW-DEBUG-PANEL
+
+#+begin_src lisp
+(defmethod gamekit:draw ((app sonic-game))
+  ;; Prototype loading screen
+  (when (and *basic-rendering-ok*
+         (not *game-start*))
+    (gamekit:with-pushed-canvas ()
+      (gamekit:draw-rect (gamekit:vec2 0 0)
+                         (gameprop :window-width)
+                         (gameprop :window-height)
+                         :fill-paint +black+
+                         :stroke-paint +black+))
+    (gamekit:with-pushed-canvas ()
+      (gamekit:translate-canvas
+       (- (/ (gameprop :window-width) 2) 50)
+       (- (/ (gameprop :window-height) 2) 5))
+      (gamekit:draw-text "Now Loading"
+                         (gamekit:vec2 0 0)
+                         :fill-color +white+
+                         :font *font-gohu-11*)))
+  ;; Game rendering
+  (when *game-start*
+    (gamekit:with-pushed-canvas ()
+      (mapcar (lambda (img)
+                (gamekit:draw-image +origin+ img))
+              '(:bg-layer0 :bg-layer1 :bg-layer2
+                :bg-layer3 :bg-layer4 :bg-layer5))
+      (draw-debug-panel)
+      (draw-player *player*))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD CL-BODGE.APPKIT:DRAW (SONIC-GAME) {10048150E3}>
+
+** Entry point
+
+#+begin_src lisp
+(defun start ()
+  (gamekit:start 'sonic-game))
+
+(defun reset ()
+  (setf (player-pos *player*) (gamekit:vec2 100 100)
+        (state *player*)      :none
+        (player-spd *player*) (gamekit:vec2 0 0)
+        (ground *player*)     t))
+
+(defun stop ()
+  (gamekit:stop)
+  (reset)
+  (setf *game-start*         nil
+        ,*basic-rendering-ok* nil))
+#+end_src
+
+#+RESULTS:
+: STOP
+
+** Pre-destruction
+
+#+begin_src lisp
+(defmethod gamekit:pre-destroy ((app sonic-game))
+  (reset)
+  (setf *game-start*         nil
+        ,*basic-rendering-ok* nil))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:PRE-DESTROY (SONIC-GAME) {10038CA1C3}>
+
+** Test-run scripts
+
+#+NAME: start_game
+#+begin_src lisp :tangle no :results silent
+(start)
+#+end_src
+
+#+NAME: stop_game
+#+begin_src lisp :tangle no :results silent
+(stop)
+#+end_src
+
+#+NAME: reset_game
+#+begin_src lisp :tangle no :results silent
+(reset)
+#+end_src
+
+* Bundling
+:PROPERTIES:
+:header-args:lisp: :tangle bundle.lisp
+:END:
+
+#+begin_src lisp
+;;;; bundle.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(defpackage #:sonic-lisp.bundle
+  (:use #:cl)
+  (:export #:deliver))
+
+(in-package :sonic-lisp.bundle)
+
+(defun deliver ()
+  (gamekit.distribution:deliver :sonic-lisp
+                                'sonic-lisp:sonic-game))
+#+end_src
+
