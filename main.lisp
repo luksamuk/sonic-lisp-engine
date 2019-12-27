@@ -13,7 +13,7 @@
   (gamekit:prepare-resources :gohufont) ; first and foremost
   (gamekit:prepare-resources
    :sonic-sprites
-   :level-music
+   *level-bgm*
    :sfx-skidding
    :sfx-jump
    :sfx-spindash
@@ -28,7 +28,7 @@
         (setf *basic-rendering-ok* t)
         (setf *font-gohu-11* (gamekit:make-font :gohufont 11)))
       (progn
-        (gamekit:play-sound :level-music :looped-p t)
+        (gamekit:play-sound *level-bgm* :looped-p t)
         (setf *game-start* t))))
 
 (defun update-delta-time ()

@@ -244,14 +244,50 @@ Register the sprites for Sonic.
 
 *** Level music
 
-Registers some placeholder level music.
+Registers level music.
 
 #+begin_src lisp
-(gamekit:define-sound :level-music "bgm/level6.ogg")
+;; Level BGM
+;; Missing levels: 2, 3, 4, 7, 9
+(gamekit:define-sound :bgm-level0 "bgm/level0.ogg")
+(gamekit:define-sound :bgm-level1 "bgm/level1.ogg")
+(gamekit:define-sound :bgm-level5 "bgm/level5.ogg")
+(gamekit:define-sound :bgm-level6 "bgm/level6.ogg")
+(gamekit:define-sound :bgm-level8 "bgm/level8.ogg")
+(gamekit:define-sound :bgm-levelA "bgm/levelA.ogg")
+(gamekit:define-sound :bgm-levelB "bgm/levelB.ogg")
+(gamekit:define-sound :bgm-levelC "bgm/levelC.ogg")
 #+end_src
 
 #+RESULTS:
 : NIL
+
+These other songs relate to miscellaneous music (menus, powerups, test
+songs, etc).
+
+#+begin_src lisp
+;; Engine test BGM
+(gamekit:define-sound :bgm-test0 "bgm/test0.ogg")
+(gamekit:define-sound :bgm-test1 "bgm/test1.ogg")
+(gamekit:define-sound :bgm-test2 "bgm/test2.ogg")
+
+;; Miscellaneous BGM
+(gamekit:define-sound :bgm-menu  "bgm/menu_select.ogg")
+(gamekit:define-sound :bgm-power "bgm/powerup.ogg")
+#+end_src
+
+#+RESULTS:
+: NIL
+
+Following is a placeholder general value which defines the level music
+to be executed for this test. This may change in the future.
+
+#+begin_src lisp
+(defparameter *level-bgm* :bgm-test2) ; evening star
+#+end_src
+
+#+RESULTS:
+: *LEVEL-BGM*
 
 *** Sound Effects
 
@@ -1055,7 +1091,7 @@ Register some placeholder images for backgrounds.
   (gamekit:prepare-resources :gohufont) ; first and foremost
   (gamekit:prepare-resources
    :sonic-sprites
-   :level-music
+   *level-bgm*
    :sfx-skidding
    :sfx-jump
    :sfx-spindash
@@ -1066,7 +1102,7 @@ Register some placeholder images for backgrounds.
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT:POST-INITIALIZE (SONIC-GAME) {100255CCE3}>
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:POST-INITIALIZE (SONIC-GAME) {1004612533}>
 
 #+begin_src lisp
 (defmethod gamekit:notice-resources ((app sonic-game) &rest resource-names)
@@ -1075,12 +1111,12 @@ Register some placeholder images for backgrounds.
         (setf *basic-rendering-ok* t)
         (setf *font-gohu-11* (gamekit:make-font :gohufont 11)))
       (progn
-        (gamekit:play-sound :level-music :looped-p t)
+        (gamekit:play-sound *level-bgm* :looped-p t)
         (setf *game-start* t))))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT:NOTICE-RESOURCES (SONIC-GAME) {1003BE8393}>
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:NOTICE-RESOURCES (SONIC-GAME) {10046A8603}>
 
 ** Updating
 
