@@ -8,6 +8,10 @@ This is  a clone of  Sonic The  Hedgehog's Sega Genesis  engine, which
 aims to replicate the physics of the mascot's classic games as much as
 possible.
 
+This  project   is  also  written   as  a  /literate  program/   on  the
+[[file:sonic-lisp.org]]  file, on  the  spirit of  a  didatic approach  to
+developing a game engine.
+
 [[file:images/screenshot.png]]
 
 * Disclaimer
