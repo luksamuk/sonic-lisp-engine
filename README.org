@@ -58,7 +58,7 @@ nowadays. The tools  are surprisingly stable and  very flexible. Plus,
 running the game while developing it,  with no extra work for that, is
 very cool.
 
-** Why don't you try /<insert some frakework here>/?
+** Why don't you try /<insert some framework here>/?
 
 No.
 
@@ -66,7 +66,7 @@ No.
 
 No.
 
-** Why don't you just use JavaScript or something web-based
+** Why don't you just use JavaScript or something web-based?
 
 Because web-based  games are everywhere  nowadays, and I wanted  to do
 something different.  If you want web  stuff, check out my  profile on
@@ -91,6 +91,10 @@ Check out =trivial-gamekit= and =cl-bodge= information [[https://borodust.org/pr
 Start  by cloning  this  repository  on your  =quicklisp/local-projects=
 directory,  or  create  a  symlink   to  the  cloned  folder  on  your
 =quicklisp/local-projects= directory.
+
+Please  notice that  *this  project  uses Git  Large  File Support  for
+storing game  assets*, so you might  want to configure Git  LFS on your
+system before cloning this repository.
 
 One could also use Roswell to  run this project, tough Roswell support
 is largely untested right now, though it is planned in the future.
