@@ -3,21 +3,59 @@
 #+PROPERTY: header-args:lisp
 #+STARTUP:  content
 
+:LATEX_PROPERTIES:
+# ## Remove colorization of links
+#+LATEX_HEADER: \usepackage{color}
+#+LATEX_HEADER: \definecolor{blue}{RGB}{41,5,195}
+#+LATEX_HEADER: \makeatletter
+#+LATEX_HEADER: \hypersetup{
+#+LATEX_HEADER:     colorlinks=true,
+#+LATEX_HEADER:     linkcolor=black,
+#+LATEX_HEADER:     citecolor=black,
+#+LATEX_HEADER:     filecolor=black,
+#+LATEX_HEADER:     urlcolor=blue,
+#+LATEX_HEADER:     bookmarksdepth=4
+#+LATEX_HEADER: }
+#+LATEX_HEADER: \makeatother
+#+BIND: org-latex-hyperref-template ""
+:END:
+
+* Introduction
+
+This project is a clone of Sonic The Hedgehog's Sega Genesis engine,
+which aims to replicate the physics of the mascot's classic games as
+much as possible.
+
+** Disclaimer
+
+I do not  own Sonic The Hedgehog  or any of the  related characters on
+the franchise.  Copyright infringiment is  not intended, as this  is a
+project for  study purposes  only. Assets used for this study project
+shall not land on any commercial  product whatsoever. As for the code,
+it is original work, based on  the data available from careful reverse
+engineering  of Sonic  games, available  across the  internet in  many
+documents.
+
+* COMMENT Acknowledgements
+
+
+
 * System
 :PROPERTIES:
 :header-args:lisp: :tangle sonic-lisp.asd :eval no
 :END:
+
+Here we describe the ASDF system for the engine. This system is used
+for bundling the default package so it can be redistributed.
 
 #+begin_src lisp
 ;;;; sonic-lisp.asd
 ;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
 ;;;; This file is distributed under the MIT License.
 ;;;; See LICENSE for details.
-#+end_src
 
-#+begin_src lisp
 (asdf:defsystem #:sonic-lisp
-  :description "Description"
+  :description "Clone of Sonic The Hedgehog's Engine, written in Common Lisp"
   :author "Lucas S. Vieira <lucasvieira@protonmail.com>"
   :license "MIT"
   :version "0.0.1"
@@ -33,6 +71,9 @@
 #+end_src
 
 ** Bundling system
+
+This project accompanies a bundling mechanism that leverages the
+capabilities of =trivial-gamekit=.
 
 #+begin_src lisp
 (asdf:defsystem #:sonic-lisp/bundle
@@ -51,14 +92,15 @@
 :header-args:lisp: :tangle package.lisp
 :END:
 
+We also define a single package for the game, called =sonic-lisp=. This
+is where all symbols are registered.
+
 #+begin_src lisp
 ;;;; package.lisp
 ;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
 ;;;; This file is distributed under the MIT License.
 ;;;; See LICENSE for details.
-#+end_src
 
-#+begin_src lisp
 (defpackage #:sonic-lisp
   (:use #:cl)
   (:export #:sonic-game
@@ -72,6 +114,9 @@
 :header-args:lisp: :tangle globals.lisp
 :END:
 
+The following definitions are global to the application, and may be
+used in several structures.
+
 #+begin_src lisp
 ;;;; globals.lisp
 ;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
@@ -83,19 +128,27 @@
 
 ** Globals
 
+We define some globals which may be reused throughout the
+application, such as colors and the origin of the plane.
+
 #+begin_src lisp
 (defvar +black+  (gamekit:vec4 0 0 0 1))
 (defvar +black-transp+ (gamekit:vec4 0 0 0 0.5))
 (defvar +white+  (gamekit:vec4 1 1 1 1))
-(defvar +origin+ (gamekit:vec2 0 0))
 (defvar +cornflower-blue+
   (gamekit:vec4 (/ 100 255)
                 (/ 149 255)
                 (/ 237 255)))
+
+(defvar +origin+ (gamekit:vec2 0 0))
 #+end_src
 
 #+RESULTS:
-: +CORNFLOWER-BLUE+
+: +ORIGIN+
+
+We also define a few variables which can be used to calculate the
+variation in time between frames and a general frames-per-second
+counter.
 
 #+begin_src lisp
 (defvar *dt*   0)
@@ -105,6 +158,9 @@
 
 #+RESULTS:
 : *LAST-CHECK*
+
+Finally, we define some global variables indicating the state of
+loading of game assets.
 
 #+begin_src lisp
 (defparameter *basic-rendering-ok* nil)
@@ -116,13 +172,23 @@
 
 ** Game properties
 
+These properties are global to the game, and will be used later.
+
 #+begin_src lisp
 (defvar *game-properties*
   `(:title "Sonic Engine"
     :window-width  640
     :window-height 360
     :background    ,+cornflower-blue+))
+#+end_src
 
+#+RESULTS:
+: *GAME-PROPERTIES*
+
+We also define a convenient macro to retrieve any game property by
+key.
+
+#+begin_src lisp
 (defmacro gameprop (property)
   `(getf *game-properties* ,property))
 #+end_src
@@ -132,13 +198,16 @@
 
 ** Game definition
 
+This is the actual definition for the application, as per
+=trivial-gamekit='s specification.
+
 #+begin_src lisp
-(gamekit:defgame sonic-game
-    () ()
-    (:viewport-title  (gameprop :title))
-    (:viewport-width  (gameprop :window-width))
-    (:viewport-height (gameprop :window-height))
-    (:prepare-resources nil))
+(gamekit:defgame sonic-game ()
+  ()
+  (:viewport-title  (gameprop :title))
+  (:viewport-width  (gameprop :window-width))
+  (:viewport-height (gameprop :window-height))
+  (:prepare-resources nil))
 #+end_src
 
 #+RESULTS:
@@ -146,17 +215,25 @@
 
 ** Resource initialization
 
-#+begin_src lisp
+We not  initialize the resources  for this application.  The directory
+=resources/= on the project root is where all assets are located, so the
+following  definition should  enable  the loading  of  assets for  any
+directory whatsoever, as long as the =resources/= directory exists.
+
+#+begin_src lisp :results silent
 (gamekit:register-resource-package
  :keyword (merge-pathnames "resources/"
                            (asdf:system-relative-pathname
                             :sonic-lisp "")))
 #+end_src
 
-#+RESULTS:
-: #P"/home/alchemist/projects/org/sonic-lisp/resources/"
+The next definitions are related to game assets, and may be changed in
+the future. Notice that they don't really load the assets: we're just
+registering specific assets under specific keywords.
 
 *** Images
+
+Register the sprites for Sonic.
 
 #+begin_src lisp
 (gamekit:define-image :sonic-sprites "sprites/sonic.png")
@@ -167,6 +244,8 @@
 
 *** Level music
 
+Registers some placeholder level music.
+
 #+begin_src lisp
 (gamekit:define-sound :level-music "bgm/level6.ogg")
 #+end_src
@@ -175,6 +254,8 @@
 : NIL
 
 *** Sound Effects
+
+Registers some sound effects.
 
 #+begin_src lisp
 (gamekit:define-sound :sfx-skidding "sfx/00_skidding.ogg")
@@ -188,12 +269,18 @@
 
 *** Fonts
 
+Registers the default font used (GohuFont).
+
 #+begin_src lisp
 (gamekit:define-font :gohufont "fonts/gohufont-uni-11.ttf")
 #+end_src
 
 #+RESULTS:
 : NIL
+
+This font will also be used throughout the application later, so we
+define another global variable which will hold the font instance after
+loading.
 
 #+begin_src lisp
 (defparameter *font-gohu-11* nil)
@@ -204,7 +291,7 @@
 
 *** Level background
 
-Still WIP. Placeholders.
+Register some placeholder images for backgrounds.
 
 #+begin_src lisp
 (gamekit:define-image :bg-layer0 "bg/level6/parallax/layer0.png")
@@ -829,7 +916,8 @@ Still WIP. Placeholders.
         (groundp (ground player))
         (state (state player)))
     ;; Acceleration
-    (unless (member state '(:look-up :crouch :spindash :skid))
+    (unless (member state '(:look-up  :crouch
+                            :spindash :skid))
       (when (or (pressing-p :left)
                 (pressing-p :right))
         (setf (direction player)

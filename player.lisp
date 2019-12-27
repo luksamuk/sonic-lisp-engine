@@ -190,7 +190,8 @@
         (groundp (ground player))
         (state (state player)))
     ;; Acceleration
-    (unless (member state '(:look-up :crouch :spindash :skid))
+    (unless (member state '(:look-up  :crouch
+                            :spindash :skid))
       (when (or (pressing-p :left)
                 (pressing-p :right))
         (setf (direction player)

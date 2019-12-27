@@ -4,7 +4,7 @@
 ;;;; See LICENSE for details.
 
 (asdf:defsystem #:sonic-lisp
-  :description "Description"
+  :description "Clone of Sonic The Hedgehog's Engine, written in Common Lisp"
   :author "Lucas S. Vieira <lucasvieira@protonmail.com>"
   :license "MIT"
   :version "0.0.1"

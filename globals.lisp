@@ -8,11 +8,12 @@
 (defvar +black+  (gamekit:vec4 0 0 0 1))
 (defvar +black-transp+ (gamekit:vec4 0 0 0 0.5))
 (defvar +white+  (gamekit:vec4 1 1 1 1))
-(defvar +origin+ (gamekit:vec2 0 0))
 (defvar +cornflower-blue+
   (gamekit:vec4 (/ 100 255)
                 (/ 149 255)
                 (/ 237 255)))
+
+(defvar +origin+ (gamekit:vec2 0 0))
 
 (defvar *dt*   0)
 (defvar *fps* 60)
@@ -30,12 +31,12 @@
 (defmacro gameprop (property)
   `(getf *game-properties* ,property))
 
-(gamekit:defgame sonic-game
-    () ()
-    (:viewport-title  (gameprop :title))
-    (:viewport-width  (gameprop :window-width))
-    (:viewport-height (gameprop :window-height))
-    (:prepare-resources nil))
+(gamekit:defgame sonic-game ()
+  ()
+  (:viewport-title  (gameprop :title))
+  (:viewport-width  (gameprop :window-width))
+  (:viewport-height (gameprop :window-height))
+  (:prepare-resources nil))
 
 (gamekit:register-resource-package
  :keyword (merge-pathnames "resources/"
