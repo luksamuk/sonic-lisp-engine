@@ -3,5 +3,4 @@
 *.html
 build/
 _minted-*/
-*.pdf
 *.tex

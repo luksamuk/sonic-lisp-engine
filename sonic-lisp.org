@@ -41,7 +41,11 @@ documents.
 
 * COMMENT Acknowledgements
 
+#+TODO: This needs better formatting.
 
+- [[https://github.com/borodust][Pavel Korolev]], for developing [[https://borodust.org/projects/cl-bodge/][cl-bodge]] and [[https://borodust.org/projects/trivial-gamekit/][trivial-gamekit]].
+- The Sonic Retro Community, for hosting and collecting the [[https://info.sonicretro.org/Sonic_Physics_Guide][Sonic
+  Physics Guide]].
 
 * System
 :PROPERTIES:
@@ -349,6 +353,8 @@ Register some placeholder images for backgrounds.
 :header-args:lisp: :tangle input.lisp
 :END:
 
+The next definitions specify behaviour towards handling player input.
+
 #+begin_src lisp
 ;;;; input.lisp
 ;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
@@ -359,6 +365,9 @@ Register some placeholder images for backgrounds.
 #+end_src
 
 ** Template for input globals
+
+This template for globals is copied to all input states, and works as
+a sort of default.
 
 #+begin_src lisp
 (defvar +input-template+
@@ -372,6 +381,20 @@ Register some placeholder images for backgrounds.
 
 ** Input globals
 
+These globals are used on retrieval of input.
+
+=*INPUT-UNSYNC*= is the un-synchronized input state, and should be
+written directly by using the input bindings.
+
+=*INPUT-SYNC*= is the result of "synchronization" of input: once per
+frame, the un-synchronized input is copied to this structure,
+guaranteeing input consistency for the entire frame.
+
+=*INPUT-OLD*= is the previous state of "synchronized" input, prior to
+copying. This structure helps to determine whether a button was just
+pressed (if it wasn't pressed on last frame but is being pressed now,
+for example).
+
 #+begin_src lisp
 (defparameter *input-unsync* (copy-list +input-template+))
 (defparameter *input-sync*   (copy-list +input-template+))
@@ -381,7 +404,17 @@ Register some placeholder images for backgrounds.
 #+RESULTS:
 : *INPUT-OLD*
 
-** Predicates
+** Input predicates
+
+The following predicates are related to querying the state of certain
+buttons during the execution of the game.
+
+It is imperative to notice that only the following valid buttons to be
+queried: =:UP=, =:DOWN=, =:LEFT=, =:RIGHT=, =:START=, =:SELECT=, =:A=, =:B=, =:X=,
+=:Y=. This mapping closely resembles an Xbox 360 Controller.
+
+=PRESSING-P= tests whether the button is being held down at the current
+frame.
 
 #+begin_src lisp
 (defun pressing-p (key)
@@ -390,6 +423,10 @@ Register some placeholder images for backgrounds.
 
 #+RESULTS:
 : PRESSING-P
+
+=PRESSED-P= tests whether a button was singly pressed in a given frame,
+that is, if it was *not* held down on the previous frame, and is being
+held down in the current frame.
 
 #+begin_src lisp
 (defun pressed-p (key)
@@ -402,6 +439,10 @@ Register some placeholder images for backgrounds.
 
 ** Input update
 
+This simple function updates the input by copying the "synchronized"
+input to the old input field, and then copying the unsynchronized
+input to the "synchronized" input field, respectively.
+
 #+begin_src lisp
 (defun update-input ()
   (setf *input-old*  (copy-list *input-sync*)
@@ -412,6 +453,18 @@ Register some placeholder images for backgrounds.
 : UPDATE-INPUT
 
 ** Button bindings
+
+#+TODO: Improve macro for taking &rest
+#+TODO: Rename macro to explicitly mention the keyboard
+#+TODO: Add gamepad support
+
+This macro is particularly useful for establishing button bindings for
+our game. By taking an association list comprised of pairs =(BUTTON
+KEY)=, it generates a =trivial-gamekit= binding of the key =KEY= into a
+button =BUTTON= for this engine.
+
+Notice that =KEY= must be a valid keyboard key for =trivial-gamekit=, and
+=BUTTON= is a valid button for this engine.
 
 #+begin_src lisp
 (defmacro make-button-bindings (alist)
@@ -432,6 +485,27 @@ Register some placeholder images for backgrounds.
 
 *** Default bindings
 
+This simple function makes good use of the last described macro and
+generates default button bindings for the game engine. The defaults
+are described on the following table:
+
+#+begin_center
+|---------+-----------|
+| Button  | Keyboard  |
+|---------+-----------|
+| ~:UP~     | Up        |
+| ~:DOWN~   | Down      |
+| ~:LEFT~   | Left      |
+| ~:RIGHT~  | Right     |
+| ~:START~  | Enter     |
+| ~:SELECT~ | Backspace |
+| ~:A~      | S         |
+| ~:B~      | D         |
+| ~:X~      | A         |
+| ~:Y~      | W         |
+|---------+-----------|
+#+end_center
+
 #+begin_src lisp
 (defun make-default-bindings ()
   (make-button-bindings
@@ -448,6 +522,16 @@ Register some placeholder images for backgrounds.
 :header-args:lisp: :tangle animations.lisp
 :END:
 
+The next part is responsible for determining controls for
+animations.
+
+Animations are handled based on a single texture, which serves as a
+/texture atlas/. The rationale behind this is that we don't need a lot
+of separate textures for animating any object. Plus, we consider the
+animation frames to be square-shaped inside the atlas, with a fixed
+size so that the frames can be numbered inside the image, in a
+left-to-right, top-to-bottom manner.
+
 #+begin_src lisp
 ;;;; animations.lisp
 ;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
@@ -458,6 +542,13 @@ Register some placeholder images for backgrounds.
 #+end_src
 
 ** Animation properties
+
+The =ANIMATION-PROPS= struct holds information for a single
+animation. It contains a /list/ of keyframes, where each keyframe
+corresponds to a frame index on the texture atlas; the default time
+spent on every frame of the animation, in seconds; and the loopback
+frame of the animation, where it restarts once the last keyframe was
+shown.
 
 #+begin_src lisp
 (defstruct animation-props
@@ -470,6 +561,11 @@ Register some placeholder images for backgrounds.
 : ANIMATION-PROPS
 
 ** Animator
+
+The class =ANIMATOR= corresponds to the animation controls for an entire
+object. It is responsible for holding references and information about
+the /texture atlas/, the current state of the animations, and the
+properties for many animations that can be attached to it arbitrarily.
 
 #+begin_src lisp
 (defclass animator ()
@@ -494,6 +590,14 @@ Register some placeholder images for backgrounds.
 
 #+RESULTS:
 : #<STANDARD-CLASS SONIC-LISP::ANIMATOR>
+
+The =ANIMATOR= class is also supposed to implement the following
+generics: a /setter/ for the currently playing animation, a method for
+registering a new animation, and methods for /updating/ the animation
+logic and /rendering/ the animations onscreen.
+
+We define the generics for those methods now, and we implement them
+afterwards.
 
 #+begin_src lisp
 (defgeneric (setf animation) (animation-name animator))
@@ -699,6 +803,9 @@ Register some placeholder images for backgrounds.
 #+end_src
 
 ** State values
+
+These values (along with most of the other coding on collision and
+movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide][Sonic Physics Guide]] at Sonic Retro.
 
 #+begin_src lisp
 (defparameter *player-general-vals*
