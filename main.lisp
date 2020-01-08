@@ -44,6 +44,8 @@
 
 (defmethod gamekit:act ((app sonic-game))
   (when *game-start*
+    (when (pressed-p :select)
+      (reset))
     (update-delta-time)
     (update-input)
     (update-player *player* *dt*)))
@@ -78,32 +80,38 @@
                       (:y      #\Y)))))))
 
 (defmethod gamekit:draw ((app sonic-game))
-  ;; Prototype loading screen
-  (when (and *basic-rendering-ok*
-         (not *game-start*))
-    (gamekit:with-pushed-canvas ()
-      (gamekit:draw-rect (gamekit:vec2 0 0)
-                         (gameprop :window-width)
-                         (gameprop :window-height)
-                         :fill-paint +black+
-                         :stroke-paint +black+))
-    (gamekit:with-pushed-canvas ()
-      (gamekit:translate-canvas
-       (- (/ (gameprop :window-width) 2) 50)
-       (- (/ (gameprop :window-height) 2) 5))
-      (gamekit:draw-text "Now Loading"
-                         (gamekit:vec2 0 0)
-                         :fill-color +white+
-                         :font *font-gohu-11*)))
-  ;; Game rendering
-  (when *game-start*
-    (gamekit:with-pushed-canvas ()
-      (mapcar (lambda (img)
-                (gamekit:draw-image +origin+ img))
-              '(:bg-layer0 :bg-layer1 :bg-layer2
-                :bg-layer3 :bg-layer4 :bg-layer5))
-      (draw-debug-panel)
-      (draw-player *player*))))
+  (gamekit:with-pushed-canvas ()
+    ;; Screen fit
+    (gamekit:scale-canvas (/ (gamekit:viewport-width)
+                             (gameprop :window-width))
+                          (/ (gamekit:viewport-height)
+                             (gameprop :window-height)))
+    ;; Prototype loading screen
+    (when (and *basic-rendering-ok*
+               (not *game-start*))
+      (gamekit:with-pushed-canvas ()
+        (gamekit:draw-rect (gamekit:vec2 0 0)
+                           (gameprop :window-width)
+                           (gameprop :window-height)
+                           :fill-paint +black+
+                           :stroke-paint +black+))
+      (gamekit:with-pushed-canvas ()
+        (gamekit:translate-canvas
+         (- (/ (gameprop :window-width) 2) 50)
+         (- (/ (gameprop :window-height) 2) 5))
+        (gamekit:draw-text "Now Loading"
+                           (gamekit:vec2 0 0)
+                           :fill-color +white+
+                           :font *font-gohu-11*)))
+    ;; Game rendering
+    (when *game-start*
+      (gamekit:with-pushed-canvas ()
+        (mapcar (lambda (img)
+                  (gamekit:draw-image +origin+ img))
+                '(:bg-layer0 :bg-layer1 :bg-layer2
+                  :bg-layer3 :bg-layer4 :bg-layer5))
+        (draw-debug-panel)
+        (draw-player *player*)))))
 
 (defun start ()
   (gamekit:start 'sonic-game))
