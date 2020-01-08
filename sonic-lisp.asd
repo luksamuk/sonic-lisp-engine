@@ -9,10 +9,12 @@
   :license "MIT"
   :version "0.0.1"
   :serial t
-  :depends-on (#:trivial-gamekit)
+  :depends-on (#:trivial-gamekit
+               #:closer-mop)
   :components ((:file "package")
                (:file "globals")
                (:file "input")
+               (:file "screens")
                (:file "animations")
                (:file "debugger")
                (:file "player")

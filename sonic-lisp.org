@@ -67,10 +67,12 @@ for bundling the default package so it can be redistributed.
   :license "MIT"
   :version "0.0.1"
   :serial t
-  :depends-on (#:trivial-gamekit)
+  :depends-on (#:trivial-gamekit
+               #:closer-mop)
   :components ((:file "package")
                (:file "globals")
                (:file "input")
+               (:file "screens")
                (:file "animations")
                (:file "debugger")
                (:file "player")
@@ -258,6 +260,7 @@ Registers level music.
 ;; Missing levels: 2, 3, 4, 7, 9
 (gamekit:define-sound :bgm-level0 "bgm/level0.ogg")
 (gamekit:define-sound :bgm-level1 "bgm/level1.ogg")
+(gamekit:define-sound :bgm-level3 "bgm/level3.ogg")
 (gamekit:define-sound :bgm-level5 "bgm/level5.ogg")
 (gamekit:define-sound :bgm-level6 "bgm/level6.ogg")
 (gamekit:define-sound :bgm-level8 "bgm/level8.ogg")
@@ -290,7 +293,7 @@ Following is a placeholder general value which defines the level music
 to be executed for this test. This may change in the future.
 
 #+begin_src lisp
-(defparameter *level-bgm* :bgm-test2) ; evening star
+(defparameter *level-bgm* :bgm-level3) ; YOU SAY!
 #+end_src
 
 #+RESULTS:
@@ -516,6 +519,146 @@ are described on the following table:
 
 #+RESULTS:
 : MAKE-DEFAULT-BINDINGS
+
+* Screens
+:PROPERTIES:
+:header-args:lisp: :tangle screens.lisp
+:END:
+
+#+begin_src lisp
+;;;; screens.lisp
+;;;; Copyright (c) 2018-2020 Lucas Vieira <lucasvieira@protonmail.com>
+;;;; This file is distributed under the MIT License.
+;;;; See LICENSE for details.
+
+(in-package :sonic-lisp)
+#+end_src
+
+** Manager
+
+#+begin_src lisp
+(defclass screen-manager (standard-class)
+  ((menu       :initform nil)
+   (foreground :initform nil)
+   (playarea   :initform nil)
+   (background :initform nil)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-CLASS COMMON-LISP-USER::SCREEN-MANAGER>
+
+#+begin_src lisp
+(defmethod closer-mop:validate-superclass
+    ((class screen-manager) (superclass standard-class))
+  t)
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SB-MOP:VALIDATE-SUPERCLASS (SCREEN-MANAGER STANDARD-CLASS) {10035D23A3}>
+
+#+begin_src lisp
+(defgeneric screen-update (screen))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-GENERIC-FUNCTION COMMON-LISP-USER::SCREEN-UPDATE (0)>
+
+#+begin_src lisp
+(defmethod screen-update ((screen screen-manager))
+  (loop for menu in (slot-value screen 'menu)
+     do (screen-update menu))
+  (loop for fg in (slot-value screen 'foreground)
+     do (screen-update fg))
+  (loop for playarea in (slot-value screen 'playarea)
+     do (screen-update playarea))
+  (loop for bg in (slot-value screen 'background)
+     do (screen-update bg)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD COMMON-LISP-USER::SCREEN-UPDATE (SCREEN-MANAGER) {10023267E3}>
+
+#+begin_src lisp
+(defun screen-manager-update ()
+  (screen-update (find-class 'screen)))
+#+end_src
+
+#+RESULTS:
+: SCREEN-MANAGER-UPDATE
+
+** Screen
+
+#+begin_src lisp
+(defclass screen ()
+  ((%layer :initarg :layer
+           :reader  layer-of)
+   (%resources :reader  resource-list)
+   (%initp :reader initialized-p
+           :initform nil))
+  (:metaclass screen-manager))
+#+end_src
+
+#+RESULTS:
+: #<SCREEN-MANAGER COMMON-LISP-USER::SCREEN>
+
+#+begin_src lisp
+(defmethod initialize-instance :after ((obj screen) &key)
+  (push obj
+        (slot-value (find-class 'screen)
+                    (case (layer-of obj)
+                      (:menu       'menu)
+                      (:foreground 'foreground)
+                      (:playarea   'playarea)
+                      (:background 'background)
+                      (otherwise
+                       (error "Unknown screen layer ~S"
+                              (layer-of obj)))))))
+        
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD COMMON-LISP:INITIALIZE-INSTANCE :AFTER (SCREEN) {1001FB9583}>
+
+#+begin_src lisp
+(defgeneric screen-load (screen))
+(defgeneric screen-dispose (screen))
+
+(defgeneric screen-attach-resource (screen resource))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-GENERIC-FUNCTION COMMON-LISP-USER::SCREEN-ATTACH-RESOURCE (0)>
+
+** Resource management methods
+
+#+begin_src lisp
+(defmethod screen-attach-resource ((screen screen) (resource keyword))
+  (unless (member resource (slot-value screen '%resources))
+    (push resource (slot-value screen '%resources))
+    (when (initialized-p screen)
+      (gamekit:prepare-resources resource))))
+#+end_src
+
+#+TODO: %initp should be changed by #'notice-resources. Attach load information to screen manager!
+
+#+begin_src lisp
+(defmethod screen-load ((screen screen))
+  (macrolet ((prepare-resource-list (list)
+               `(gamekit:prepare-resources ,@list)))
+    (unless (initialized-p screen)
+      (prepare-resource-list (resource-list screen)))))
+#+end_src
+
+** Default methods
+
+#+begin_src lisp
+(defmethod screen-update ((screen screen))
+  (format t "Default update on ~a, layer ~a~%"
+          "Default Screen" (layer-of screen)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD COMMON-LISP-USER::SCREEN-UPDATE (SCREEN) {10028297F3}>
 
 * Animations
 :PROPERTIES:
@@ -956,6 +1099,8 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 #+RESULTS:
 : #<STANDARD-GENERIC-FUNCTION SONIC-LISP::UPDATE-PLAYER-AIR-ACTION (0)>
 
+#+TODO: Direction changing while walking
+
 #+begin_src lisp
 (defmethod update-player-ground-action ((player player) dt)
   (let ((xsp (gamekit:x (player-spd player)))
@@ -987,9 +1132,9 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
              (state player)  :jump))
       ;; Skidding
       ((and (eq state :none)
-            (or (and (> xsp (get-state-val :decel))
+            (or (and (> xsp 3.0)
                      (pressing-p :left))
-                (and (< xsp (- (get-state-val :decel)))
+                (and (< xsp -3.0)
                      (pressing-p :right))))
        (setf (state player) :skid)
        ;; Sound effect only if at greater speeds

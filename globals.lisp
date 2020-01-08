@@ -49,6 +49,7 @@
 ;; Missing levels: 2, 3, 4, 7, 9
 (gamekit:define-sound :bgm-level0 "bgm/level0.ogg")
 (gamekit:define-sound :bgm-level1 "bgm/level1.ogg")
+(gamekit:define-sound :bgm-level3 "bgm/level3.ogg")
 (gamekit:define-sound :bgm-level5 "bgm/level5.ogg")
 (gamekit:define-sound :bgm-level6 "bgm/level6.ogg")
 (gamekit:define-sound :bgm-level8 "bgm/level8.ogg")
@@ -65,7 +66,7 @@
 (gamekit:define-sound :bgm-menu  "bgm/menu_select.ogg")
 (gamekit:define-sound :bgm-power "bgm/powerup.ogg")
 
-(defparameter *level-bgm* :bgm-test2) ; evening star
+(defparameter *level-bgm* :bgm-level3) ; YOU SAY!
 
 (gamekit:define-sound :sfx-skidding "sfx/00_skidding.ogg")
 (gamekit:define-sound :sfx-jump     "sfx/02_jump.ogg")

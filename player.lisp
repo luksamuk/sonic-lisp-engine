@@ -130,9 +130,9 @@
              (state player)  :jump))
       ;; Skidding
       ((and (eq state :none)
-            (or (and (> xsp (get-state-val :decel))
+            (or (and (> xsp 3.0)
                      (pressing-p :left))
-                (and (< xsp (- (get-state-val :decel)))
+                (and (< xsp -3.0)
                      (pressing-p :right))))
        (setf (state player) :skid)
        ;; Sound effect only if at greater speeds
