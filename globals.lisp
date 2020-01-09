@@ -34,8 +34,8 @@
 (gamekit:defgame sonic-game ()
   ()
   (:viewport-title  (gameprop :title))
-  (:viewport-width  (gameprop :window-width))
-  (:viewport-height (gameprop :window-height))
+  (:viewport-width  960)
+  (:viewport-height 540)
   (:prepare-resources nil))
 
 (gamekit:register-resource-package

@@ -229,10 +229,9 @@
 (defmethod update-player-position ((player player) dt)
   (declare (ignore dt))
   ;; Apply deltas
-  (incf (gamekit:x (player-pos player))
-        (gamekit:x (player-spd player)))
-  (incf (gamekit:y (player-pos player))
-        (gamekit:y (player-spd player))))
+  (setf (player-pos player)
+        (gamekit:add (player-pos player)
+                     (player-spd player))))
 
 (defmethod update-player ((player player) dt)
   (update-player-anim     player dt)

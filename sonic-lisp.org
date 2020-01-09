@@ -214,13 +214,13 @@ This is the actual definition for the application, as per
 (gamekit:defgame sonic-game ()
   ()
   (:viewport-title  (gameprop :title))
-  (:viewport-width  (gameprop :window-width))
-  (:viewport-height (gameprop :window-height))
+  (:viewport-width  960)
+  (:viewport-height 540)
   (:prepare-resources nil))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT::CONFIGURE-GAME (SONIC-GAME) {10073F8B93}>
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT::CONFIGURE-GAME (SONIC-GAME) {1008600B93}>
 
 ** Resource initialization
 
@@ -520,7 +520,7 @@ are described on the following table:
 #+RESULTS:
 : MAKE-DEFAULT-BINDINGS
 
-* Screens
+* Screen Management
 :PROPERTIES:
 :header-args:lisp: :tangle screens.lisp
 :END:
@@ -536,16 +536,20 @@ are described on the following table:
 
 ** Manager
 
+*** Definition
+
 #+begin_src lisp
 (defclass screen-manager (standard-class)
   ((menu       :initform nil)
    (foreground :initform nil)
    (playarea   :initform nil)
-   (background :initform nil)))
+   (background :initform nil)
+   (loadingp   :initform nil)
+   (load-list  :initform nil)))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-CLASS COMMON-LISP-USER::SCREEN-MANAGER>
+: #<STANDARD-CLASS SONIC-LISP::SCREEN-MANAGER>
 
 #+begin_src lisp
 (defmethod closer-mop:validate-superclass
@@ -554,29 +558,92 @@ are described on the following table:
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD SB-MOP:VALIDATE-SUPERCLASS (SCREEN-MANAGER STANDARD-CLASS) {10035D23A3}>
+: #<STANDARD-METHOD SB-MOP:VALIDATE-SUPERCLASS (SCREEN-MANAGER STANDARD-CLASS) {1003F2F453}>
+
+*** Generics
 
 #+begin_src lisp
-(defgeneric screen-update (screen))
+(defgeneric screen-update  (screen))
+(defgeneric screen-draw    (screen))
+(defgeneric screen-dispose (screen))
+
+(defgeneric screen-remove  (screen))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-GENERIC-FUNCTION COMMON-LISP-USER::SCREEN-UPDATE (0)>
+: #<STANDARD-GENERIC-FUNCTION SONIC-LISP::SCREEN-REMOVE (0)>
+
+*** Update managed screens
 
 #+begin_src lisp
 (defmethod screen-update ((screen screen-manager))
-  (loop for menu in (slot-value screen 'menu)
-     do (screen-update menu))
-  (loop for fg in (slot-value screen 'foreground)
-     do (screen-update fg))
-  (loop for playarea in (slot-value screen 'playarea)
-     do (screen-update playarea))
-  (loop for bg in (slot-value screen 'background)
-     do (screen-update bg)))
+  (loop for screen-list
+     in (mapcar (lambda (x) (slot-value screen x))
+                '(background playarea foreground menu))
+     do (loop for screen in screen-list
+           if (initialized-p screen)
+           do (screen-update screen)
+           else if (not (init-polled-p screen))
+           do (progn
+                (format t "Initializing ~a~%" screen)
+                (setf (slot-value screen '%pollp) t)
+                (screen-load screen)))))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD COMMON-LISP-USER::SCREEN-UPDATE (SCREEN-MANAGER) {10023267E3}>
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-UPDATE (SCREEN-MANAGER) {10015FC933}>
+
+*** Draw managed screens
+
+#+begin_src lisp
+(defmethod screen-draw ((screen screen-manager))
+  (loop for screen-list
+     in (mapcar (lambda (x) (slot-value screen x))
+                '(background playarea foreground menu))
+     do (loop for screen in screen-list
+           when (initialized-p screen)
+           do (screen-draw screen))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-DRAW (SCREEN-MANAGER) {100591A443}>
+
+*** Flag loaded screens
+
+#+begin_src lisp
+(defun screen-manager-flag-loaded (resource-list)
+  (let ((loaded-screen nil)
+        (pending-screens (slot-value (find-class 'screen)
+                                     'load-list)))
+    (setf (slot-value (find-class 'screen) 'load-list)
+          (loop for screen in pending-screens
+             if (equal (resource-list screen) resource-list)
+             do (setf loaded-screen screen)
+             else collect screen))
+    (pop (slot-value (find-class 'screen) 'loadingp))
+    (when loaded-screen
+      (screen-init loaded-screen)
+      (setf (slot-value loaded-screen '%initp) t))))
+#+end_src
+
+#+RESULTS:
+: SCREEN-MANAGER-FLAG-LOADED
+
+*** Unload all screens
+
+#+begin_src lisp
+(defmethod screen-dispose ((screen screen-manager))
+  (loop for screen-list
+     in (mapcar (lambda (x) (slot-value screen x))
+                '(background playarea foreground menu))
+     do (loop for screen in screen-list
+           do (screen-remove screen))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-DISPOSE (SCREEN-MANAGER) {1002567C33}>
+
+*** Global functions
 
 #+begin_src lisp
 (defun screen-manager-update ()
@@ -586,20 +653,51 @@ are described on the following table:
 #+RESULTS:
 : SCREEN-MANAGER-UPDATE
 
+#+begin_src lisp
+(defun screen-manager-draw ()
+  (screen-draw (find-class 'screen)))
+#+end_src
+
+#+RESULTS:
+: SCREEN-MANAGER-DRAW
+
+#+begin_src lisp
+(defun screen-manager-dispose ()
+  (screen-dispose (find-class 'screen)))
+#+end_src
+
+#+RESULTS:
+: SCREEN-MANAGER-DISPOSE
+
+#+begin_src lisp
+(defun screen-manager-loadingp ()
+  (not (null (slot-value (find-class 'screen) 'loadingp))))
+#+end_src
+
+#+RESULTS:
+: SCREEN-MANAGER-LOADINGP
+
 ** Screen
+
+*** Definition
 
 #+begin_src lisp
 (defclass screen ()
-  ((%layer :initarg :layer
-           :reader  layer-of)
-   (%resources :reader  resource-list)
-   (%initp :reader initialized-p
-           :initform nil))
+  ((%layer     :initarg :layer
+               :reader  layer-of)
+   (%resources :initform nil
+               :reader resource-list)
+   (%initp     :reader initialized-p
+               :initform nil)
+   (%pollp     :reader init-polled-p
+               :initform nil))
   (:metaclass screen-manager))
 #+end_src
 
 #+RESULTS:
-: #<SCREEN-MANAGER COMMON-LISP-USER::SCREEN>
+: #<SCREEN-MANAGER SONIC-LISP::SCREEN>
+
+*** Push new instance to proper layer
 
 #+begin_src lisp
 (defmethod initialize-instance :after ((obj screen) &key)
@@ -613,52 +711,76 @@ are described on the following table:
                       (otherwise
                        (error "Unknown screen layer ~S"
                               (layer-of obj)))))))
-        
 #+end_src
 
 #+RESULTS:
 : #<STANDARD-METHOD COMMON-LISP:INITIALIZE-INSTANCE :AFTER (SCREEN) {1001FB9583}>
+
+*** Generics
 
 #+begin_src lisp
 (defgeneric screen-load (screen))
 (defgeneric screen-dispose (screen))
 
 (defgeneric screen-attach-resource (screen resource))
+(defgeneric screen-init (screen))
 #+end_src
 
 #+RESULTS:
 : #<STANDARD-GENERIC-FUNCTION COMMON-LISP-USER::SCREEN-ATTACH-RESOURCE (0)>
 
-** Resource management methods
+*** Resource management methods
+
+**** Resource attachment
 
 #+begin_src lisp
-(defmethod screen-attach-resource ((screen screen) (resource keyword))
+(defmethod screen-attach-resource ((screen screen) resource)
   (unless (member resource (slot-value screen '%resources))
     (push resource (slot-value screen '%resources))
     (when (initialized-p screen)
       (gamekit:prepare-resources resource))))
 #+end_src
 
-#+TODO: %initp should be changed by #'notice-resources. Attach load information to screen manager!
-
-#+begin_src lisp
-(defmethod screen-load ((screen screen))
-  (macrolet ((prepare-resource-list (list)
-               `(gamekit:prepare-resources ,@list)))
-    (unless (initialized-p screen)
-      (prepare-resource-list (resource-list screen)))))
-#+end_src
-
 ** Default methods
 
 #+begin_src lisp
-(defmethod screen-update ((screen screen))
-  (format t "Default update on ~a, layer ~a~%"
-          "Default Screen" (layer-of screen)))
+;; (defmethod screen-update ((screen screen))
+;;   (format t "Default update on ~a, layer ~a~%"
+;;           "Default Screen" (layer-of screen)))
+#+end_src
+
+*** Load screens
+
+#+begin_src lisp
+(defmethod screen-load ((screen screen))
+  (unless (initialized-p screen)
+    (push screen (slot-value (find-class 'screen) 'load-list))
+    (push t (slot-value (find-class 'screen) 'loadingp))
+    (apply #'gamekit:prepare-resources (resource-list screen))))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD COMMON-LISP-USER::SCREEN-UPDATE (SCREEN) {10028297F3}>
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-LOAD (SCREEN) {1004523E63}>
+
+*** Remove screens
+
+#+begin_src lisp
+(defmethod screen-remove ((screen screen))
+  (apply #'gamekit:dispose-resources (resource-list screen))
+  (let ((slot-name (case (layer-of screen)
+                     (:menu       'menu)
+                     (:foreground 'foreground)
+                     (:playarea   'playarea)
+                     (:background 'background)
+                     (otherwise
+                      (error "Unknown screen layer ~S"
+                             (layer-of screen))))))
+    (setf (slot-value (find-class 'screen) slot-name)
+          (remove screen (slot-value (find-class 'screen) slot-name)))))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-REMOVE (SCREEN) {1007599DE3}>
 
 * Animations
 :PROPERTIES:
@@ -1255,14 +1377,13 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 (defmethod update-player-position ((player player) dt)
   (declare (ignore dt))
   ;; Apply deltas
-  (incf (gamekit:x (player-pos player))
-        (gamekit:x (player-spd player)))
-  (incf (gamekit:y (player-pos player))
-        (gamekit:y (player-spd player))))
+  (setf (player-pos player)
+        (gamekit:add (player-pos player)
+                     (player-spd player))))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-POSITION (PLAYER T) {10058BACE3}>
+: #<STANDARD-METHOD SONIC-LISP::UPDATE-PLAYER-POSITION (PLAYER T) {1006A5A9C3}>
 
 *** General update method
 
@@ -1328,15 +1449,166 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 (in-package :sonic-lisp)
 #+end_src
 
+** Play screen
+
+#+begin_src lisp
+(defclass play-screen (screen)
+  ((%player :initform nil
+            :accessor player))
+  (:metaclass screen-manager))
+#+end_src
+
+#+RESULTS:
+: #<SCREEN-MANAGER SONIC-LISP::PLAY-SCREEN>
+
+*** Initialization
+
+#+begin_src lisp
+(defmethod screen-init ((screen play-screen))
+  (setf (slot-value screen '%player)
+        (create-player (gamekit:vec2 100 100)))
+  (gamekit:play-sound *level-bgm* :looped-p t))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-INIT (PLAY-SCREEN) {1003096893}>
+
+*** Update
+
+#+begin_src lisp
+(defmethod screen-update ((screen play-screen))
+  (update-player (slot-value screen '%player) *dt*))
+#+end_src
+
+*** Rendering
+
+#+begin_src lisp
+(defmethod screen-draw ((screen play-screen))
+  (gamekit:with-pushed-canvas ()
+    (mapcar (lambda (img)
+              (gamekit:draw-image +origin+ img))
+            '(:bg-layer0 :bg-layer1 :bg-layer2
+              :bg-layer3 :bg-layer4 :bg-layer5))
+    (draw-player (slot-value screen '%player))))
+#+end_src
+
+*** Instantiation helper
+
+#+begin_src lisp
+(defun make-play-screen (level-name)
+  (declare (ignore level-name)) ; wip
+  (let ((screen (make-instance 'play-screen :layer :playarea)))
+    (mapc (lambda (resource)
+            (screen-attach-resource screen resource))
+          `(:sonic-sprites
+            ,,*level-bgm*
+            :sfx-skidding
+            :sfx-jump
+            :sfx-spindash
+            :sfx-release
+            :bg-layer0 :bg-layer1 :bg-layer2
+            :bg-layer3 :bg-layer4 :bg-layer5))
+    screen))
+#+end_src
+
+#+RESULTS:
+: MAKE-PLAY-SCREEN
+
+** Menu screen
+
+#+begin_src lisp
+(defclass menu-screen (screen)
+  ((%option :initform 0))
+  (:metaclass screen-manager))
+#+end_src
+
+#+RESULTS:
+: #<SCREEN-MANAGER SONIC-LISP::MENU-SCREEN>
+
+*** Initialization
+
+#+begin_src lisp
+(defmethod screen-init ((screen menu-screen))
+  (declare (ignore screen)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-INIT (MENU-SCREEN) {1005062773}>
+
+*** Update
+
+#+begin_src lisp
+(defmethod screen-update ((screen menu-screen))
+  (when (pressed-p :start)
+    (setf *play-screen* (make-play-screen "level06"))
+    (screen-remove screen)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-UPDATE (MENU-SCREEN) {1005143C93}>
+
+*** Menu rendering
+
+#+begin_src lisp
+(defmacro menu-text-draw (string position font)
+  `(gamekit:draw-text ,string ,position
+                      :fill-color +white+
+                      :font ,font))
+#+end_src
+
+#+RESULTS:
+: MENU-TEXT-DRAW
+
+#+begin_src lisp
+(defmacro with-game-menu ((font padding &key start-y selector) &body fields)
+  `(gamekit:with-pushed-canvas ()
+     (gamekit:translate-canvas 20 ,start-y)
+     ;; Text fields
+     ,@(let ((curr-y 0))
+         (loop for field in fields
+            unless (equal field '(terpri))
+            collect
+              `(menu-text-draw
+                (format nil ,(first field)
+                        ,@(rest field))
+                (gamekit:vec2 0 ,curr-y)
+                ,font)
+            do (decf curr-y padding)))))
+#+end_src
+
+#+RESULTS:
+: WITH-GAME-MENU
+
+*** Rendering
+
+#+begin_src lisp
+(defmethod screen-draw ((screen menu-screen))
+  (with-game-menu (*font-gohu-11* 10
+                   :start-y 300
+                   :selector 0)
+    ("Sonic Lisp Engine v0.1")
+    ("(c) 2020 Lucas S. Vieira")
+    (terpri)
+    ("Start")
+    ("Quit")))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-DRAW (MENU-SCREEN) {100406F493}>
+
 ** Test variables
 
 #+begin_src lisp
-(defparameter *player*
-  (create-player (gamekit:vec2 100 100)))
+;; (defparameter *player*
+;;   (create-player (gamekit:vec2 100 100)))
 #+end_src
 
 #+RESULTS:
 : *PLAYER*
+
+#+begin_src lisp
+(defparameter *play-screen* nil)
+#+end_src
 
 ** Post-initialization
 
@@ -1344,34 +1616,41 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 (defmethod gamekit:post-initialize ((app sonic-game))
   ;; Resource acquisition
   (gamekit:prepare-resources :gohufont) ; first and foremost
-  (gamekit:prepare-resources
-   :sonic-sprites
-   *level-bgm*
-   :sfx-skidding
-   :sfx-jump
-   :sfx-spindash
-   :sfx-release
-   :bg-layer0 :bg-layer1 :bg-layer2
-   :bg-layer3 :bg-layer4 :bg-layer5)
   (make-default-bindings))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT:POST-INITIALIZE (SONIC-GAME) {1004612533}>
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:POST-INITIALIZE (SONIC-GAME) {1007222153}>
+
+** Notice resources
 
 #+begin_src lisp
 (defmethod gamekit:notice-resources ((app sonic-game) &rest resource-names)
-  (if (member :gohufont resource-names)
+  (if (member :gohufont resource-names) ; bad! replace!!!
       (progn
         (setf *basic-rendering-ok* t)
-        (setf *font-gohu-11* (gamekit:make-font :gohufont 11)))
+        (setf *font-gohu-11* (gamekit:make-font :gohufont 11))
+        (screen-load (make-instance 'menu-screen :layer :menu)))
       (progn
-        (gamekit:play-sound *level-bgm* :looped-p t)
+        (screen-manager-flag-loaded resource-names)
         (setf *game-start* t))))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT:NOTICE-RESOURCES (SONIC-GAME) {10046A8603}>
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:NOTICE-RESOURCES (SONIC-GAME) {1001967C53}>
+
+** Pre-destruction
+
+#+begin_src lisp
+(defmethod gamekit:pre-destroy ((app sonic-game))
+  (screen-manager-dispose)
+  (reset)
+  (setf *game-start*         nil
+        ,*basic-rendering-ok* nil))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:PRE-DESTROY (SONIC-GAME) {1007318C73}>
 
 ** Updating
 
@@ -1398,7 +1677,9 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
       (reset))
     (update-delta-time)
     (update-input)
-    (update-player *player* *dt*)))
+    (screen-manager-update)
+    ;; (update-player *player* *dt*)
+))
 #+end_src
 
 #+RESULTS:
@@ -1409,15 +1690,15 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 #+begin_src lisp
 (defun draw-debug-panel ()
   (with-debug-panel
-    ("pos >> (~5$, ~5$)"
-     (gamekit:x (player-pos *player*))
-     (gamekit:y (player-pos *player*)))
-    ("spd >> (~5$, ~5$)"
-     (gamekit:x (player-spd *player*))
-     (gamekit:y (player-spd *player*)))
+    ;; ("pos >> (~5$, ~5$)"
+    ;;  (gamekit:x (player-pos *player*))
+    ;;  (gamekit:y (player-pos *player*)))
+    ;; ("spd >> (~5$, ~5$)"
+    ;;  (gamekit:x (player-spd *player*))
+    ;;  (gamekit:y (player-spd *player*)))
+    ;; ("sta >> ~a" (state *player*))
+    ;; ("ani >> ~a" (anim-name (animator *player*)))
     ("fps >> ~5$" *fps*)
-    ("sta >> ~a" (state *player*))
-    ("ani >> ~a" (anim-name (animator *player*)))
     ("inp >> (~{~a ~})"
      (loop for (btn sta) on *input-sync*
         by #'cddr
@@ -1448,15 +1729,17 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
                              (gameprop :window-width))
                           (/ (gamekit:viewport-height)
                              (gameprop :window-height)))
+    ;; Black background, regardless
+    (gamekit:with-pushed-canvas ()
+      (gamekit:draw-rect (gamekit:vec2 0 0)
+                         (gameprop :window-width)
+                         (gameprop :window-height)
+                         :fill-paint +black+
+                         :stroke-paint +black+))
     ;; Prototype loading screen
-    (when (and *basic-rendering-ok*
-               (not *game-start*))
-      (gamekit:with-pushed-canvas ()
-        (gamekit:draw-rect (gamekit:vec2 0 0)
-                           (gameprop :window-width)
-                           (gameprop :window-height)
-                           :fill-paint +black+
-                           :stroke-paint +black+))
+    (when (or (and *basic-rendering-ok*
+                   (not *game-start*))
+              (screen-manager-loadingp))
       (gamekit:with-pushed-canvas ()
         (gamekit:translate-canvas
          (- (/ (gameprop :window-width) 2) 50)
@@ -1468,16 +1751,17 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
     ;; Game rendering
     (when *game-start*
       (gamekit:with-pushed-canvas ()
-        (mapcar (lambda (img)
-                  (gamekit:draw-image +origin+ img))
-                '(:bg-layer0 :bg-layer1 :bg-layer2
-                  :bg-layer3 :bg-layer4 :bg-layer5))
-        (draw-debug-panel)
-        (draw-player *player*)))))
+        (screen-manager-draw)
+        ;; (mapcar (lambda (img)
+        ;;           (gamekit:draw-image +origin+ img))
+        ;;         '(:bg-layer0 :bg-layer1 :bg-layer2
+        ;;           :bg-layer3 :bg-layer4 :bg-layer5))
+        ;; (draw-player *player*)
+        (draw-debug-panel)))))
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD CL-BODGE.APPKIT:DRAW (SONIC-GAME) {10048150E3}>
+: #<STANDARD-METHOD CL-BODGE.APPKIT:DRAW (SONIC-GAME) {1004CBCD03}>
 
 ** Entry point
 
@@ -1486,10 +1770,12 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
   (gamekit:start 'sonic-game))
 
 (defun reset ()
-  (setf (player-pos *player*) (gamekit:vec2 100 100)
-        (state *player*)      :none
-        (player-spd *player*) (gamekit:vec2 0 0)
-        (ground *player*)     t))
+  (let ((player (slot-value *play-screen* '%player)))
+    (when player
+      (setf (player-pos player) (gamekit:vec2 100 100)
+            (state player)      :none
+            (player-spd player) (gamekit:vec2 0 0)
+            (ground player)     t))))
 
 (defun stop ()
   (gamekit:stop)
@@ -1500,18 +1786,6 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 
 #+RESULTS:
 : STOP
-
-** Pre-destruction
-
-#+begin_src lisp
-(defmethod gamekit:pre-destroy ((app sonic-game))
-  (reset)
-  (setf *game-start*         nil
-        ,*basic-rendering-ok* nil))
-#+end_src
-
-#+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT:PRE-DESTROY (SONIC-GAME) {10038CA1C3}>
 
 ** Test-run scripts
 
