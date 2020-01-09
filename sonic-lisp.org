@@ -637,7 +637,9 @@ are described on the following table:
      in (mapcar (lambda (x) (slot-value screen x))
                 '(background playarea foreground menu))
      do (loop for screen in screen-list
-           do (screen-remove screen))))
+           do (progn
+                (screen-dispose screen)
+                (screen-remove screen)))))
 #+end_src
 
 #+RESULTS:
@@ -1477,7 +1479,11 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 
 #+begin_src lisp
 (defmethod screen-update ((screen play-screen))
-  (update-player (slot-value screen '%player) *dt*))
+  (update-player (slot-value screen '%player) *dt*)
+  (when (pressed-p :select)
+    (setf *play-screen* nil)
+    (make-instance 'menu-screen :layer :menu)
+    (screen-remove screen)))
 #+end_src
 
 *** Rendering
@@ -1491,6 +1497,16 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
               :bg-layer3 :bg-layer4 :bg-layer5))
     (draw-player (slot-value screen '%player))))
 #+end_src
+
+*** Disposal
+
+#+begin_src lisp
+(defmethod screen-dispose ((screen play-screen))
+  (gamekit:stop-sound *level-bgm*))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-DISPOSE (PLAY-SCREEN) {1005B79083}>
 
 *** Instantiation helper
 
@@ -1596,6 +1612,16 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 #+RESULTS:
 : #<STANDARD-METHOD SONIC-LISP::SCREEN-DRAW (MENU-SCREEN) {100406F493}>
 
+*** Disposal
+
+#+begin_src lisp
+(defmethod screen-dispose ((screen menu-screen))
+  (declare (ignore screen)))
+#+end_src
+
+#+RESULTS:
+: #<STANDARD-METHOD SONIC-LISP::SCREEN-DISPOSE (MENU-SCREEN) {1005DF1EF3}>
+
 ** Test variables
 
 #+begin_src lisp
@@ -1673,8 +1699,6 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 #+begin_src lisp
 (defmethod gamekit:act ((app sonic-game))
   (when *game-start*
-    (when (pressed-p :select)
-      (reset))
     (update-delta-time)
     (update-input)
     (screen-manager-update)
@@ -1683,7 +1707,7 @@ movements) is inspired by the [[https://info.sonicretro.org/Sonic_Physics_Guide]
 #+end_src
 
 #+RESULTS:
-: #<STANDARD-METHOD TRIVIAL-GAMEKIT:ACT (SONIC-GAME) {10034F5743}>
+: #<STANDARD-METHOD TRIVIAL-GAMEKIT:ACT (SONIC-GAME) {10061FC703}>
 
 ** Rendering
 

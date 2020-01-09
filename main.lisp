@@ -16,7 +16,11 @@
   (gamekit:play-sound *level-bgm* :looped-p t))
 
 (defmethod screen-update ((screen play-screen))
-  (update-player (slot-value screen '%player) *dt*))
+  (update-player (slot-value screen '%player) *dt*)
+  (when (pressed-p :select)
+    (setf *play-screen* nil)
+    (make-instance 'menu-screen :layer :menu)
+    (screen-remove screen)))
 
 (defmethod screen-draw ((screen play-screen))
   (gamekit:with-pushed-canvas ()
@@ -25,6 +29,9 @@
             '(:bg-layer0 :bg-layer1 :bg-layer2
               :bg-layer3 :bg-layer4 :bg-layer5))
     (draw-player (slot-value screen '%player))))
+
+(defmethod screen-dispose ((screen play-screen))
+  (gamekit:stop-sound *level-bgm*))
 
 (defun make-play-screen (level-name)
   (declare (ignore level-name)) ; wip
@@ -83,6 +90,9 @@
     ("Start")
     ("Quit")))
 
+(defmethod screen-dispose ((screen menu-screen))
+  (declare (ignore screen)))
+
 ;; (defparameter *player*
 ;;   (create-player (gamekit:vec2 100 100)))
 
@@ -122,8 +132,6 @@
 
 (defmethod gamekit:act ((app sonic-game))
   (when *game-start*
-    (when (pressed-p :select)
-      (reset))
     (update-delta-time)
     (update-input)
     (screen-manager-update)

@@ -63,7 +63,9 @@
      in (mapcar (lambda (x) (slot-value screen x))
                 '(background playarea foreground menu))
      do (loop for screen in screen-list
-           do (screen-remove screen))))
+           do (progn
+                (screen-dispose screen)
+                (screen-remove screen)))))
 
 (defun screen-manager-update ()
   (screen-update (find-class 'screen)))
